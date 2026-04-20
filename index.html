@@ -1,0 +1,1305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com data:; img-src 'self' data:; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com; upgrade-insecure-requests" />
+  <meta name="referrer" content="strict-origin-when-cross-origin" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Reciprocity — Who didn’t follow you back?</title>
+  <meta name="description" content="Compare your Instagram data export: see accounts you follow who don’t follow you back. Private, in your browser — drop your official .zip or load JSON." />
+  <meta name="theme-color" content="#08090f" />
+  <meta property="og:title" content="Reciprocity — Instagram follow-back checker" />
+  <meta property="og:description" content="Find one-way follows from your export. Runs entirely in your browser." />
+  <meta property="og:type" content="website" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23141824'/%3E%3Cpath fill='none' stroke='%235ee6c0' stroke-width='2' stroke-linecap='round' d='M10 16h12M16 10l6 6-6 6'/%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&amp;family=Syne:wght@600;700;800&amp;display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg-deep: #090a0e;
+      --surface: rgba(22, 24, 32, 0.55);
+      --surface-raised: rgba(28, 30, 40, 0.85);
+      --border: rgba(255, 255, 255, 0.07);
+      --border-strong: rgba(255, 255, 255, 0.12);
+      --text: #eef0f3;
+      --muted: #8b95a5;
+      --accent: #f472b6;
+      --accent-soft: rgba(244, 114, 182, 0.1);
+      --mint: #5eead4;
+      --warn: #fcd34d;
+      --link: #93c5fd;
+      --radius: 12px;
+      --font-display: "Syne", system-ui, sans-serif;
+      --font-body: "Outfit", system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: var(--font-body);
+      background: var(--bg-deep);
+      color: var(--text);
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+    .bg-gradient {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(ellipse 70% 40% at 50% 0%, rgba(244, 114, 182, 0.08), transparent 50%),
+        radial-gradient(ellipse 40% 35% at 90% 60%, rgba(94, 234, 212, 0.05), transparent 45%),
+        var(--bg-deep);
+    }
+    .shell {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: min(100%, 92rem);
+      margin: 0 auto;
+      padding-top: max(0.85rem, env(safe-area-inset-top, 0px));
+      padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+      padding-left: max(clamp(0.65rem, 4vw, 2.5rem), env(safe-area-inset-left, 0px));
+      padding-right: max(clamp(0.65rem, 4vw, 2.5rem), env(safe-area-inset-right, 0px));
+      min-height: 100dvh;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      box-sizing: border-box;
+    }
+    .shell > .hero,
+    .shell > #zip-dropzone,
+    .shell > .disclosure,
+    .shell > #server-hint {
+      flex-shrink: 0;
+    }
+    .shell > .site-footer {
+      flex-shrink: 0;
+      margin-top: 1.25rem;
+    }
+    .hero {
+      text-align: center;
+      margin-bottom: 0.65rem;
+    }
+    .brand-title {
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: clamp(1rem, 2.8vw, 1.28rem);
+      letter-spacing: -0.03em;
+      line-height: 1.15;
+      margin: 0;
+      color: var(--text);
+    }
+    .brand-title .accent {
+      background: linear-gradient(120deg, var(--mint), var(--accent));
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .panel {
+      background: var(--surface);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem 1.1rem;
+      margin-bottom: 0.85rem;
+    }
+    .panel p { margin: 0 0 0.75rem; font-size: 0.875rem; color: var(--muted); }
+    .panel p:last-child { margin-bottom: 0; }
+    code {
+      font-size: 0.78rem;
+      background: rgba(0, 0, 0, 0.25);
+      padding: 0.1rem 0.35rem;
+      border-radius: 4px;
+    }
+    .disclosure {
+      margin-bottom: 1rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+    .disclosure summary {
+      cursor: pointer;
+      padding: 0.55rem 0.85rem;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--muted);
+      list-style: none;
+      min-height: 2.5rem;
+      display: flex;
+      align-items: center;
+    }
+    .disclosure summary::-webkit-details-marker { display: none; }
+    .disclosure summary::after {
+      content: "+";
+      margin-left: auto;
+      padding-left: 0.5rem;
+      opacity: 0.5;
+      font-weight: 400;
+    }
+    .disclosure[open] summary::after { content: "−"; }
+    .disclosure .disclosure-body {
+      padding: 0 clamp(0.75rem, 3vw, 1rem) 0.75rem;
+      font-size: 0.78rem;
+      color: var(--muted);
+      line-height: 1.5;
+      border-top: 1px solid var(--border);
+    }
+    .disclosure .disclosure-body p {
+      margin: 0.65rem 0 0;
+    }
+    .results-block {
+      margin-top: 0.5rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      padding: 0;
+      overflow: visible;
+      display: flex;
+      flex-direction: column;
+    }
+    .results-block__body {
+      padding: clamp(0.65rem, 2.2vw, 1rem) clamp(0.6rem, 2.5vw, 1.1rem);
+      display: flex;
+      flex-direction: column;
+    }
+    .results-block__body > .flash,
+    .results-block__body > .toolbar,
+    .results-block__body > .error {
+      flex-shrink: 0;
+    }
+    .review-layout {
+      display: grid;
+      gap: 1rem;
+      align-items: start;
+    }
+    .review-layout--solo {
+      grid-template-columns: 1fr;
+    }
+    .review-layout--with-sidebar {
+      grid-template-columns: minmax(0, 1fr) minmax(260px, 20rem);
+    }
+    .review-main {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    .review-sidebar {
+      position: relative;
+      top: auto;
+      overflow-x: hidden;
+      overflow-y: visible;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    @media (min-width: 52.0625rem) {
+      .review-layout--with-sidebar .review-sidebar {
+        position: sticky;
+        top: max(0.75rem, env(safe-area-inset-top, 0px));
+        align-self: start;
+        max-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 1.25rem);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+      }
+    }
+    .review-sidebar::-webkit-scrollbar {
+      width: 6px;
+    }
+    .review-sidebar::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 3px;
+    }
+    .review-sidebar .marked-block,
+    .review-sidebar .kept-block {
+      margin-top: 0;
+    }
+    .review-sidebar .marked-heading,
+    .review-sidebar .kept-heading {
+      font-size: 0.9rem;
+    }
+    .review-sidebar li {
+      padding: 0.5rem 0;
+      flex-wrap: wrap;
+    }
+    .review-sidebar .row-actions {
+      width: 100%;
+      justify-content: flex-start;
+    }
+    @media (max-width: 52rem) {
+      .review-layout--with-sidebar {
+        grid-template-columns: 1fr;
+      }
+    }
+    .stats {
+      flex-shrink: 0;
+      width: 100%;
+      padding: 0.55rem clamp(0.45rem, 2vw, 0.65rem) 0.65rem;
+      border-bottom: 1px solid var(--border);
+      background: rgba(0, 0, 0, 0.12);
+    }
+    .stat-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+      width: 100%;
+      align-items: stretch;
+    }
+    .stat-box {
+      flex: 1 1 0;
+      min-width: 5.5rem;
+      border-radius: 10px;
+      background: rgba(0, 0, 0, 0.28);
+      border: 1px solid var(--border-strong);
+      padding: 0.7rem 0.45rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.25rem;
+      text-align: center;
+    }
+    .stat-box--queue {
+      flex: 1.2 1 12rem;
+      min-width: 7rem;
+    }
+    .stat-box--warn .stat-box__value {
+      color: var(--warn);
+    }
+    .stat-box--muted .stat-box__value {
+      color: var(--muted);
+    }
+    .stat-box__value {
+      font-family: var(--font-display);
+      font-size: clamp(1.35rem, 3.2vw, 1.85rem);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+      color: var(--text);
+    }
+    .stat-box--queue .stat-box__value {
+      font-size: clamp(1.75rem, 4vw, 2.35rem);
+    }
+    .stat-box__label {
+      font-size: clamp(0.68rem, 1.2vw, 0.78rem);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      line-height: 1.2;
+    }
+    @media (max-width: 36rem) {
+      .stat-row {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+      }
+      .stat-box--queue {
+        grid-column: 1 / -1;
+        flex: none;
+      }
+    }
+    ul {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+    .list-heading,
+    .review-main > .empty {
+      flex-shrink: 0;
+    }
+    .list-panel {
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: rgba(0, 0, 0, 0.14);
+    }
+    .list-panel ul {
+      border-radius: 0;
+      overflow: visible;
+    }
+    li {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 0.55rem 0.65rem;
+      border-bottom: 1px solid var(--border);
+      background: rgba(0, 0, 0, 0.12);
+    }
+    li:last-child { border-bottom: none; }
+    .handle {
+      font-weight: 500;
+      word-break: break-all;
+    }
+    a.profile {
+      flex-shrink: 0;
+      color: var(--link);
+      text-decoration: none;
+      font-size: 0.875rem;
+    }
+    a.profile:hover { text-decoration: underline; }
+    .empty {
+      color: var(--muted);
+      font-size: 0.9rem;
+      padding: 1rem 0;
+    }
+    .error {
+      color: #f87171;
+      font-size: 0.875rem;
+    }
+    label.file {
+      display: inline-block;
+      margin-top: 0.5rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    input[type="file"] {
+      margin-top: 0.35rem;
+      font-size: 0.75rem;
+      max-width: 100%;
+    }
+    .section-label {
+      display: none;
+    }
+    .list-heading {
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin: 0 0 0.5rem;
+    }
+    li .row-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-shrink: 0;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    button.done-btn,
+    button.keep-btn {
+      font: inherit;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 0.32rem 0.55rem;
+      border-radius: 6px;
+      border: 1px solid transparent;
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--muted);
+      cursor: pointer;
+    }
+    button.keep-btn:hover {
+      color: #c4b5fd;
+      background: rgba(167, 139, 250, 0.12);
+    }
+    button.done-btn:hover {
+      color: var(--accent);
+      background: var(--accent-soft);
+    }
+    button.undo-btn {
+      font: inherit;
+      font-size: 0.7rem;
+      padding: 0.2rem 0.35rem;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+    }
+    button.undo-btn:hover { color: var(--text); }
+    li.marked-pending {
+      opacity: 0.65;
+    }
+    li.marked-pending .handle {
+      text-decoration: line-through;
+    }
+    .badge {
+      font-size: 0.62rem;
+      font-weight: 600;
+      padding: 0.12rem 0.35rem;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .flash {
+      font-size: 0.78rem;
+      color: #86efac;
+      margin-bottom: 0.65rem;
+      padding: 0.45rem 0.65rem;
+      border-radius: 8px;
+      background: rgba(134, 239, 172, 0.08);
+      border: 1px solid rgba(134, 239, 172, 0.2);
+    }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.65rem 1rem;
+      margin-bottom: 0.85rem;
+      padding-bottom: 0.85rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .toolbar .btn-text {
+      font: inherit;
+      font-size: 0.75rem;
+      color: var(--muted);
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 0;
+    }
+    .toolbar .btn-text:hover { color: var(--text); }
+    .kept-block,
+    .marked-block {
+      margin-top: 0;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: rgba(0, 0, 0, 0.15);
+      padding: 0.75rem 0.85rem 0.25rem;
+    }
+    .kept-block .kept-heading,
+    .marked-block .marked-heading {
+      margin: 0 0 0.5rem;
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+    }
+    .kept-block ul,
+    .marked-block ul {
+      padding-bottom: 0.35rem;
+    }
+    #marked-section,
+    #kept-section {
+      scroll-margin-top: 1rem;
+    }
+    #kept-section:focus,
+    #marked-section:focus {
+      outline: none;
+    }
+    #kept-section:focus-visible,
+    #marked-section:focus-visible {
+      outline: 2px solid var(--link);
+      outline-offset: 4px;
+    }
+    li.kept-row .badge { background: #3b2f5c; color: #ddd6fe; }
+    .zip-dropzone {
+      position: relative;
+      margin-bottom: 0.6rem;
+      border: 1px dashed var(--border-strong);
+      border-radius: 10px;
+      background: var(--surface);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .zip-dropzone.zip-dropzone--drag {
+      border-color: var(--accent);
+      border-style: solid;
+      background: var(--accent-soft);
+    }
+    .zip-dropzone input[type="file"] {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    .zip-dropzone-label {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      cursor: pointer;
+      padding: 0.55rem 0.75rem;
+      min-height: 2.75rem;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .zip-dropzone-label strong {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 600;
+      margin-bottom: 0.12rem;
+      color: var(--text);
+      font-family: var(--font-display);
+      letter-spacing: -0.02em;
+    }
+    .zip-dropzone-label .zip-hint {
+      display: block;
+      font-size: 0.7rem;
+      color: var(--muted);
+      line-height: 1.35;
+    }
+    .zip-dropzone .zip-extra {
+      padding: 0 0.75rem 0.5rem;
+      font-size: 0.68rem;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+    .zip-dropzone .zip-extra summary {
+      cursor: pointer;
+      color: var(--link);
+      font-weight: 500;
+      margin-bottom: 0.2rem;
+      padding: 0.2rem 0;
+      min-height: 2.25rem;
+      display: flex;
+      align-items: center;
+      list-style: none;
+    }
+    .zip-dropzone .zip-extra summary::-webkit-details-marker { display: none; }
+    .zip-status {
+      margin: 0;
+      padding: 0 0.75rem 0.5rem;
+      font-size: 0.7rem;
+      color: #86efac;
+    }
+    .zip-status.zip-status--err {
+      color: #f87171;
+    }
+    .site-footer {
+      margin-top: 1.25rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.75rem;
+      color: var(--muted);
+      line-height: 1.55;
+      text-align: center;
+    }
+    .site-footer p {
+      margin: 0 auto;
+      max-width: min(42rem, 100%);
+    }
+    .site-footer .footer-brand {
+      font-family: var(--font-display);
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.02em;
+    }
+    .site-footer .footer-year {
+      opacity: 0.75;
+      font-size: 0.75rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-gradient" aria-hidden="true"></div>
+  <main class="shell">
+    <header class="hero">
+      <h1 class="brand-title">Reci<span class="accent">procity</span></h1>
+    </header>
+
+    <div id="zip-dropzone" class="zip-dropzone">
+      <input type="file" id="zip-input" accept=".zip,application/zip" />
+      <label for="zip-input" class="zip-dropzone-label">
+        <strong>Instagram data export (.zip)</strong>
+        <span class="zip-hint">Drop the file here or click to choose. From Instagram: <em>Download your information</em>.</span>
+      </label>
+      <details class="zip-extra">
+        <summary>What needs to be inside</summary>
+        <p style="margin: 0.35rem 0 0">Include <strong>followers</strong> and <strong>following</strong> in the request. The tool reads <code>connections/…/followers_and_following/</code> JSON files. Keep / Unfollow labels are stored only in this browser.</p>
+      </details>
+      <p id="zip-status" class="zip-status" hidden></p>
+    </div>
+
+    <details class="disclosure">
+      <summary>How Keep &amp; Unfollow work</summary>
+      <div class="disclosure-body">
+        <p>This isn’t live Instagram — only your download. <strong>Unfollow</strong> tracks who you’ve handled; <strong>Keep</strong> hides accounts you still want to follow (e.g. creators). On a wide screen those lists stay in a side panel while you scroll the queue. Upload a newer export to refresh.</p>
+      </div>
+    </details>
+
+    <div id="server-hint" class="panel" hidden>
+      <p><strong>Fastest:</strong> Drop your <code>.zip</code> above — no server.</p>
+      <p>Or open this page through a local server so bundled JSON files can load (browsers block <code>file://</code> fetches).</p>
+      <p>From the <strong>Mini project</strong> folder run:</p>
+      <p><code>python3 -m http.server 8765</code></p>
+      <p>Then visit <code>http://localhost:8765/</code> or <code>http://localhost:8765/index.html</code></p>
+      <p>Or pick JSON files manually below.</p>
+      <label class="file">followers_1.json (or all follower chunks)<input type="file" id="file-followers" accept=".json" multiple /></label>
+      <br /><br />
+      <label class="file">following.json<input type="file" id="file-following" accept=".json" /></label>
+    </div>
+
+    <div class="results-block" id="results-block" hidden>
+    <div id="stats" class="stats" hidden></div>
+    <div class="results-block__body">
+    <p id="flash" class="flash" hidden></p>
+    <div id="toolbar" class="toolbar" hidden>
+      <button type="button" id="clear-marked" class="btn-text">Clear unfollow marks</button>
+      <button type="button" id="clear-kept" class="btn-text">Clear keep list</button>
+    </div>
+    <p id="error" class="error" hidden style="margin: 0 0 0.75rem"></p>
+    <div id="review-layout" class="review-layout review-layout--solo">
+      <div class="review-main">
+        <p id="list-heading" class="list-heading" hidden>Review</p>
+        <p id="all-marked-note" class="empty" hidden></p>
+        <div class="list-panel">
+          <ul id="list"></ul>
+        </div>
+      </div>
+      <aside id="review-sidebar" class="review-sidebar" hidden aria-label="Marked and kept accounts">
+        <div id="marked-section" class="marked-block" hidden>
+          <h2 class="marked-heading" id="marked-heading">Marked</h2>
+          <ul id="list-marked" aria-label="Marked as unfollowed"></ul>
+        </div>
+        <div id="kept-section" class="kept-block" hidden>
+          <h2 class="kept-heading" id="kept-heading">Kept</h2>
+          <ul id="list-kept" aria-label="Kept accounts"></ul>
+        </div>
+      </aside>
+    </div>
+    </div>
+    </div>
+
+    <footer class="site-footer">
+      <p><span class="footer-brand">Reciprocity</span> isn’t from Instagram or Meta. Everything runs in your browser; you choose how you use your data. <span class="footer-year">© 2026</span></p>
+    </footer>
+  </main>
+
+  <script>
+    const FOLLOWERS_BASE = "connections/followers_and_following/followers_";
+    const FOLLOWING_PATH = "connections/followers_and_following/following.json";
+    const LS_MANUAL = "ig-unfollow-done-v1";
+    const LS_KEEP = "ig-unfollow-keep-v1";
+
+    function loadManualSet() {
+      try {
+        const raw = localStorage.getItem(LS_MANUAL);
+        return new Set(raw ? JSON.parse(raw) : []);
+      } catch (_) {
+        return new Set();
+      }
+    }
+
+    function saveManualSet(set) {
+      localStorage.setItem(LS_MANUAL, JSON.stringify([...set].sort()));
+    }
+
+    function loadKeepSet() {
+      try {
+        const raw = localStorage.getItem(LS_KEEP);
+        return new Set(raw ? JSON.parse(raw) : []);
+      } catch (_) {
+        return new Set();
+      }
+    }
+
+    function saveKeepSet(set) {
+      localStorage.setItem(LS_KEEP, JSON.stringify([...set].sort()));
+    }
+
+    function normUser(s) {
+      return String(s || "").trim().toLowerCase().replace(/^@/, "");
+    }
+
+    function profileUrl(username) {
+      const u = encodeURIComponent(username);
+      return "https://www.instagram.com/" + u + "/";
+    }
+
+    function safeInstagramHref(href, username) {
+      const fallback = profileUrl(username);
+      if (typeof href !== "string" || !href.trim()) return fallback;
+      var parsed;
+      try {
+        parsed = new URL(href);
+      } catch (_) {
+        return fallback;
+      }
+      if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return fallback;
+      var host = parsed.hostname.toLowerCase();
+      if (host !== "instagram.com" && host !== "www.instagram.com") return fallback;
+      parsed.protocol = "https:";
+      return parsed.href;
+    }
+
+    function parseFollowersArray(data) {
+      if (!Array.isArray(data)) return [];
+      const out = [];
+      for (const item of data) {
+        const row = item.string_list_data && item.string_list_data[0];
+        if (!row) continue;
+        const name = normUser(row.value);
+        if (!name) continue;
+        const href = safeInstagramHref(row.href || profileUrl(name), name);
+        out.push({ username: name, href });
+      }
+      return out;
+    }
+
+    function parseFollowingObject(data) {
+      const rel = data.relationships_following;
+      if (!Array.isArray(rel)) return [];
+      const out = [];
+      for (const item of rel) {
+        const name = normUser(item.title);
+        if (!name) continue;
+        const row = item.string_list_data && item.string_list_data[0];
+        const href = safeInstagramHref((row && row.href) || profileUrl(name), name);
+        out.push({ username: name, href });
+      }
+      return out;
+    }
+
+    function mergeFollowersFromArrays(arrays) {
+      const map = new Map();
+      for (const arr of arrays) {
+        for (const { username, href } of arr) {
+          if (!map.has(username)) map.set(username, { username, href });
+        }
+      }
+      return map;
+    }
+
+    function buildRow(username, href, mode) {
+      const li = document.createElement("li");
+      if (mode === "marked") li.className = "marked-pending";
+      if (mode === "kept") li.className = "kept-row";
+      const span = document.createElement("span");
+      span.className = "handle";
+      span.textContent = "@" + username;
+      const actions = document.createElement("div");
+      actions.className = "row-actions";
+      const a = document.createElement("a");
+      a.className = "profile";
+      a.href = href;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.textContent = "Profile";
+      actions.appendChild(a);
+      if (mode === "todo") {
+        const keepBtn = document.createElement("button");
+        keepBtn.type = "button";
+        keepBtn.className = "keep-btn";
+        keepBtn.textContent = "Keep";
+        keepBtn.dataset.username = username;
+        keepBtn.addEventListener("click", onMarkKeep);
+        actions.appendChild(keepBtn);
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "done-btn";
+        btn.textContent = "Unfollow";
+        btn.dataset.username = username;
+        btn.addEventListener("click", onMarkUnfollowed);
+        actions.appendChild(btn);
+      } else if (mode === "marked") {
+        const badge = document.createElement("span");
+        badge.className = "badge";
+        badge.textContent = "Marked";
+        const undo = document.createElement("button");
+        undo.type = "button";
+        undo.className = "undo-btn";
+        undo.textContent = "Undo";
+        undo.dataset.username = username;
+        undo.addEventListener("click", onUndoMarked);
+        actions.appendChild(badge);
+        actions.appendChild(undo);
+      } else if (mode === "kept") {
+        const badge = document.createElement("span");
+        badge.className = "badge";
+        badge.textContent = "Kept";
+        const undo = document.createElement("button");
+        undo.type = "button";
+        undo.className = "undo-btn";
+        undo.textContent = "Undo keep";
+        undo.dataset.username = username;
+        undo.addEventListener("click", onUndoKeep);
+        actions.appendChild(badge);
+        actions.appendChild(undo);
+      }
+      li.appendChild(span);
+      li.appendChild(actions);
+      return li;
+    }
+
+    function onMarkKeep(ev) {
+      const u = ev.currentTarget.dataset.username;
+      if (!u) return;
+      const keep = loadKeepSet();
+      keep.add(u);
+      saveKeepSet(keep);
+      const manual = loadManualSet();
+      if (manual.has(u)) {
+        manual.delete(u);
+        saveManualSet(manual);
+      }
+      if (window.__igRerender) window.__igRerender();
+    }
+
+    function onUndoKeep(ev) {
+      const u = ev.currentTarget.dataset.username;
+      if (!u) return;
+      const keep = loadKeepSet();
+      keep.delete(u);
+      saveKeepSet(keep);
+      if (window.__igRerender) window.__igRerender();
+    }
+
+    function onMarkUnfollowed(ev) {
+      const u = ev.currentTarget.dataset.username;
+      if (!u) return;
+      const manual = loadManualSet();
+      manual.add(u);
+      saveManualSet(manual);
+      const keep = loadKeepSet();
+      if (keep.has(u)) {
+        keep.delete(u);
+        saveKeepSet(keep);
+      }
+      if (window.__igRerender) window.__igRerender();
+    }
+
+    function onUndoMarked(ev) {
+      const u = ev.currentTarget.dataset.username;
+      if (!u) return;
+      const manual = loadManualSet();
+      manual.delete(u);
+      saveManualSet(manual);
+      if (window.__igRerender) window.__igRerender();
+    }
+
+    document.getElementById("clear-marked").addEventListener("click", function () {
+      saveManualSet(new Set());
+      const flash = document.getElementById("flash");
+      flash.hidden = false;
+      flash.textContent = "Unfollow marks cleared.";
+      setTimeout(function () {
+        flash.hidden = true;
+      }, 2500);
+      if (window.__igRerender) window.__igRerender();
+    });
+
+    document.getElementById("clear-kept").addEventListener("click", function () {
+      saveKeepSet(new Set());
+      const flash = document.getElementById("flash");
+      flash.hidden = false;
+      flash.textContent = "Keep list cleared.";
+      setTimeout(function () {
+        flash.hidden = true;
+      }, 2500);
+      if (window.__igRerender) window.__igRerender();
+    });
+
+    function render(followerSet, notBack, followingSet, confirmedDrop) {
+      const stats = document.getElementById("stats");
+      const list = document.getElementById("list");
+      const listMarked = document.getElementById("list-marked");
+      const listHeading = document.getElementById("list-heading");
+      const allMarkedNote = document.getElementById("all-marked-note");
+      const resultsBlock = document.getElementById("results-block");
+      if (resultsBlock) resultsBlock.hidden = false;
+      const markedSection = document.getElementById("marked-section");
+      const markedHeading = document.getElementById("marked-heading");
+      const toolbar = document.getElementById("toolbar");
+      const flash = document.getElementById("flash");
+      const keptSection = document.getElementById("kept-section");
+      const keptHeading = document.getElementById("kept-heading");
+      const listKept = document.getElementById("list-kept");
+      const reviewLayout = document.getElementById("review-layout");
+      const reviewSidebar = document.getElementById("review-sidebar");
+
+      function syncReviewLayout(hasSidebar) {
+        if (!reviewLayout || !reviewSidebar) return;
+        reviewSidebar.hidden = !hasSidebar;
+        reviewLayout.classList.toggle("review-layout--solo", !hasSidebar);
+        reviewLayout.classList.toggle("review-layout--with-sidebar", hasSidebar);
+      }
+
+      const notBackNames = new Set(notBack.rows.map(function (r) {
+        return r.username;
+      }));
+      const keepBefore = loadKeepSet();
+      const keep = new Set(keepBefore);
+      for (const u of [...keepBefore]) {
+        if (!followingSet.has(u)) keep.delete(u);
+        else if (!notBackNames.has(u)) keep.delete(u);
+      }
+      const keepBeforeStr = JSON.stringify([...keepBefore].sort());
+      const keepAfterStr = JSON.stringify([...keep].sort());
+      if (keepBeforeStr !== keepAfterStr) saveKeepSet(keep);
+
+      const manualBefore = loadManualSet();
+      const manual = new Set(manualBefore);
+      let confirmedByExport = 0;
+      for (const u of [...manualBefore]) {
+        if (!followingSet.has(u)) {
+          manual.delete(u);
+          confirmedByExport++;
+        } else if (!notBackNames.has(u)) {
+          manual.delete(u);
+        }
+      }
+      const beforeStr = JSON.stringify([...manualBefore].sort());
+      const afterStr = JSON.stringify([...manual].sort());
+      if (beforeStr !== afterStr) saveManualSet(manual);
+
+      if (confirmedByExport > 0 && confirmedDrop) {
+        flash.hidden = false;
+        flash.textContent =
+          confirmedByExport === 1
+            ? "1 marked account disappeared from this export (counted as unfollowed)."
+            : confirmedByExport +
+              " marked accounts disappeared from this export (counted as unfollowed).";
+        setTimeout(function () {
+          flash.hidden = true;
+        }, 5000);
+      }
+
+      const todo = [];
+      const markedRows = [];
+      const keptRows = [];
+      for (const row of notBack.rows) {
+        if (manual.has(row.username)) markedRows.push(row);
+        else if (keep.has(row.username)) keptRows.push(row);
+        else todo.push(row);
+      }
+      keptRows.sort(function (a, b) {
+        return a.username.localeCompare(b.username);
+      });
+      markedRows.sort(function (a, b) {
+        return a.username.localeCompare(b.username);
+      });
+
+      stats.hidden = false;
+      stats.innerHTML =
+        '<div class="stat-row" role="group" aria-label="Export summary">' +
+        '<div class="stat-box stat-box--queue">' +
+        '<span class="stat-box__value">' +
+        todo.length +
+        '</span><span class="stat-box__label">In queue</span></div>' +
+        '<div class="stat-box" title="From your follower export">' +
+        '<span class="stat-box__value">' +
+        followerSet.size +
+        '</span><span class="stat-box__label">Followers</span></div>' +
+        '<div class="stat-box">' +
+        '<span class="stat-box__value">' +
+        notBack.totalFollowing +
+        '</span><span class="stat-box__label">Following</span></div>' +
+        '<div class="stat-box stat-box--warn">' +
+        '<span class="stat-box__value">' +
+        notBack.rows.length +
+        '</span><span class="stat-box__label">One-way</span></div>' +
+        (markedRows.length > 0
+          ? '<div class="stat-box stat-box--muted">' +
+            '<span class="stat-box__value">' +
+            markedRows.length +
+            '</span><span class="stat-box__label">Marked</span></div>'
+          : "") +
+        (keptRows.length > 0
+          ? '<div class="stat-box stat-box--muted">' +
+            '<span class="stat-box__value">' +
+            keptRows.length +
+            '</span><span class="stat-box__label">Kept</span></div>'
+          : "") +
+        "</div>";
+
+      toolbar.hidden = markedRows.length === 0 && keptRows.length === 0;
+
+      list.innerHTML = "";
+      listMarked.innerHTML = "";
+      listKept.innerHTML = "";
+
+      if (notBack.rows.length === 0) {
+        if (listHeading) listHeading.hidden = true;
+        allMarkedNote.hidden = true;
+        keptSection.hidden = true;
+        markedSection.hidden = true;
+        syncReviewLayout(false);
+        const p = document.createElement("p");
+        p.className = "empty";
+        p.textContent = "Everyone you follow appears in your followers list.";
+        list.appendChild(p);
+        return;
+      }
+
+      keptSection.hidden = keptRows.length === 0;
+      keptHeading.textContent = "Kept · " + keptRows.length;
+
+      markedSection.hidden = markedRows.length === 0;
+      markedHeading.textContent = "Marked · " + markedRows.length;
+
+      syncReviewLayout(markedRows.length > 0 || keptRows.length > 0);
+
+      if (todo.length === 0 && markedRows.length > 0) {
+        allMarkedNote.hidden = false;
+        allMarkedNote.textContent =
+          "Queue empty — everyone left is marked. Upload a fresh export to confirm.";
+      } else {
+        allMarkedNote.hidden = true;
+      }
+
+      if (listHeading) listHeading.hidden = todo.length === 0;
+
+      if (todo.length === 0 && markedRows.length === 0 && keptRows.length > 0) {
+        const p = document.createElement("p");
+        p.className = "empty";
+        p.textContent =
+          "Queue empty — open Kept in the sidebar and use “Undo keep” to bring someone back.";
+        list.appendChild(p);
+      }
+
+      for (const row of todo) list.appendChild(buildRow(row.username, row.href, "todo"));
+      for (const row of markedRows) listMarked.appendChild(buildRow(row.username, row.href, "marked"));
+      for (const row of keptRows) listKept.appendChild(buildRow(row.username, row.href, "kept"));
+    }
+
+    function computeNotFollowingBack(followerMap, followingList) {
+      const rows = [];
+      for (const { username, href } of followingList) {
+        if (!followerMap.has(username)) rows.push({ username, href: profileUrl(username) });
+      }
+      rows.sort((a, b) => a.username.localeCompare(b.username));
+      return { rows, totalFollowing: followingList.length };
+    }
+
+    async function runWithData(followerMapsArrays, followingJson) {
+      const errEl = document.getElementById("error");
+      errEl.hidden = true;
+      const followerMap = mergeFollowersFromArrays(followerMapsArrays);
+      const followingList = parseFollowingObject(followingJson);
+      const followingSet = new Set(followingList.map(function (x) {
+        return x.username;
+      }));
+      const notBack = computeNotFollowingBack(followerMap, followingList);
+      render(followerMap, notBack, followingSet, true);
+      window.__igRerender = function () {
+        render(followerMap, notBack, followingSet, false);
+      };
+    }
+
+    document.getElementById("file-followers").addEventListener("change", maybeRunFiles);
+    document.getElementById("file-following").addEventListener("change", maybeRunFiles);
+
+    async function maybeRunFiles() {
+      const fFollowers = document.getElementById("file-followers").files;
+      const fFollowing = document.getElementById("file-following").files[0];
+      if (!fFollowers || fFollowers.length === 0 || !fFollowing) return;
+      const errEl = document.getElementById("error");
+      try {
+        const followerArrays = [];
+        for (const file of fFollowers) {
+          const text = await file.text();
+          followerArrays.push(parseFollowersArray(JSON.parse(text)));
+        }
+        const followingText = await fFollowing.text();
+        const followingJson = JSON.parse(followingText);
+        await runWithData(followerArrays, followingJson);
+        document.getElementById("server-hint").hidden = true;
+        errEl.hidden = true;
+      } catch (e) {
+        errEl.hidden = false;
+        errEl.textContent = "Could not parse JSON: " + (e && e.message ? e.message : String(e));
+      }
+    }
+
+    (async function init() {
+      try {
+        const followerArrays = [];
+        for (let i = 1; i <= 20; i++) {
+          const url = FOLLOWERS_BASE + i + ".json";
+          const res = await fetch(url);
+          if (!res.ok) break;
+          followerArrays.push(parseFollowersArray(await res.json()));
+        }
+        if (followerArrays.length === 0) throw new Error("no followers");
+        const resF = await fetch(FOLLOWING_PATH);
+        if (!resF.ok) throw new Error("no following");
+        const followingJson = await resF.json();
+        await runWithData(followerArrays, followingJson);
+        document.getElementById("server-hint").hidden = true;
+      } catch (_) {
+        document.getElementById("server-hint").hidden = false;
+      }
+    })();
+  </script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script>
+    (function () {
+      const dropzone = document.getElementById("zip-dropzone");
+      const zipInput = document.getElementById("zip-input");
+      const zipStatus = document.getElementById("zip-status");
+      const errEl = document.getElementById("error");
+
+      function setZipStatus(msg, isError) {
+        zipStatus.hidden = !msg;
+        zipStatus.textContent = msg || "";
+        zipStatus.classList.toggle("zip-status--err", !!isError);
+        if (!isError) zipStatus.classList.remove("zip-status--err");
+      }
+
+      function normPath(p) {
+        return String(p || "").replace(/\\/g, "/");
+      }
+
+      function findExportEntries(zip) {
+        const followingCandidates = [];
+        const followerChunks = [];
+        const names = Object.keys(zip.files);
+
+        for (let i = 0; i < names.length; i++) {
+          const raw = names[i];
+          const entry = zip.files[raw];
+          if (!entry || entry.dir) continue;
+          const path = normPath(raw);
+          const base = path.split("/").pop() || "";
+          const lowerBase = base.toLowerCase();
+          const inFF = path.toLowerCase().includes("followers_and_following");
+          const inConnections = /connections\//i.test(path);
+
+          if (lowerBase === "following.json") {
+            followingCandidates.push({ path: path, inFF: inFF, inConnections: inConnections, entry: entry });
+          }
+          const m = base.match(/^followers_(\d+)\.json$/i);
+          if (m && inFF) {
+            followerChunks.push({ n: parseInt(m[1], 10), entry: entry });
+          }
+        }
+
+        if (followerChunks.length === 0) {
+          for (let j = 0; j < names.length; j++) {
+            const raw = names[j];
+            const entry = zip.files[raw];
+            if (!entry || entry.dir) continue;
+            const path = normPath(raw);
+            const base = path.split("/").pop() || "";
+            const m = base.match(/^followers_(\d+)\.json$/i);
+            if (m && /connections\//i.test(path)) {
+              followerChunks.push({ n: parseInt(m[1], 10), entry: entry });
+            }
+          }
+        }
+
+        let followingEntry = null;
+        for (let k = 0; k < followingCandidates.length; k++) {
+          if (followingCandidates[k].inFF) {
+            followingEntry = followingCandidates[k].entry;
+            break;
+          }
+        }
+        if (!followingEntry) {
+          for (let k = 0; k < followingCandidates.length; k++) {
+            if (followingCandidates[k].inConnections) {
+              followingEntry = followingCandidates[k].entry;
+              break;
+            }
+          }
+        }
+        if (!followingEntry && followingCandidates.length === 1) {
+          followingEntry = followingCandidates[0].entry;
+        }
+
+        return { followingEntry: followingEntry, followerChunks: followerChunks };
+      }
+
+      async function processZipFile(file) {
+        if (!file) return;
+        if (!/\.zip$/i.test(file.name) && file.type !== "application/zip" && file.type !== "application/x-zip-compressed") {
+          setZipStatus("Please choose a .zip file from Instagram’s data download.", true);
+          return;
+        }
+        if (typeof JSZip === "undefined") {
+          setZipStatus("ZIP library failed to load. Check your network and refresh the page, or use the JSON file picks below.", true);
+          return;
+        }
+
+        errEl.hidden = true;
+        setZipStatus("Reading " + file.name + "…", false);
+
+        try {
+          const zip = await JSZip.loadAsync(file);
+          const found = findExportEntries(zip);
+
+          if (!found.followingEntry) {
+            throw new Error(
+              "Could not find following.json (look for connections/…/followers_and_following/following.json inside the zip)."
+            );
+          }
+          if (found.followerChunks.length === 0) {
+            throw new Error(
+              "Could not find followers_1.json (and friends) under followers_and_following. Make sure you requested followers in the Instagram export."
+            );
+          }
+
+          found.followerChunks.sort(function (a, b) {
+            return a.n - b.n;
+          });
+
+          const followingText = await found.followingEntry.async("string");
+          const followingJson = JSON.parse(followingText);
+          if (!followingJson || !Array.isArray(followingJson.relationships_following)) {
+            throw new Error("following.json is not in the expected Instagram format.");
+          }
+
+          const followerArrays = [];
+          for (let i = 0; i < found.followerChunks.length; i++) {
+            const text = await found.followerChunks[i].entry.async("string");
+            followerArrays.push(parseFollowersArray(JSON.parse(text)));
+          }
+
+          await runWithData(followerArrays, followingJson);
+          document.getElementById("server-hint").hidden = true;
+          errEl.hidden = true;
+          setZipStatus(
+            "Loaded " +
+              file.name +
+              " — " +
+              found.followerChunks.length +
+              " follower file(s), " +
+              followingJson.relationships_following.length +
+              " following.",
+            false
+          );
+        } catch (e) {
+          const msg = e && e.message ? e.message : String(e);
+          setZipStatus(msg, true);
+          errEl.hidden = false;
+          errEl.textContent = msg;
+        }
+      }
+
+      dropzone.addEventListener("dragenter", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        dropzone.classList.add("zip-dropzone--drag");
+      });
+      dropzone.addEventListener("dragleave", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const rel = e.relatedTarget;
+        if (!rel || !dropzone.contains(rel)) dropzone.classList.remove("zip-dropzone--drag");
+      });
+      dropzone.addEventListener("dragover", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = "copy";
+        dropzone.classList.add("zip-dropzone--drag");
+      });
+      dropzone.addEventListener("drop", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        dropzone.classList.remove("zip-dropzone--drag");
+        const f = e.dataTransfer.files && e.dataTransfer.files[0];
+        if (f) processZipFile(f);
+      });
+
+      zipInput.addEventListener("change", function () {
+        const f = zipInput.files && zipInput.files[0];
+        if (f) processZipFile(f);
+        zipInput.value = "";
+      });
+    })();
+  </script>
+</body>
+</html>

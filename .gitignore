@@ -1,0 +1,4 @@
+# Never commit Instagram data exports
+connections/
+*.zip
+.DS_Store
